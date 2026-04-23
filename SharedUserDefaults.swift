@@ -59,9 +59,16 @@ enum AppDefaultsStore {
     // MARK: - User Preferences
     
     enum Preferences {
+        // Mirrored to App Group so the Share Extension (a separate process) can read it.
         static var disableSharePopUp: Bool {
-            get { UserDefaults.standard.bool(forKey: "com.soduto.preferences.disablesharepopup") }
-            set { UserDefaults.standard.set(newValue, forKey: "com.soduto.preferences.disablesharepopup") }
+            get {
+                (appGroupDefaults?.object(forKey: "com.soduto.preferences.disablesharepopup") as? Bool)
+                    ?? UserDefaults.standard.bool(forKey: "com.soduto.preferences.disablesharepopup")
+            }
+            set {
+                appGroupDefaults?.set(newValue, forKey: "com.soduto.preferences.disablesharepopup")
+                UserDefaults.standard.set(newValue, forKey: "com.soduto.preferences.disablesharepopup")
+            }
         }
         
         static var deviceType: Int {

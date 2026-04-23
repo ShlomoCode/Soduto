@@ -42,10 +42,21 @@ class ShareExtensionController: NSViewController {
         return min(fixedHeight + gridHeight, 400)
     }
     
+    private var shouldAutoShare: Bool {
+        AppDefaultsStore.Preferences.disableSharePopUp && validDeviceEntries.count == 1
+    }
+
     override func loadView() {
         // Clear any stale transfer statuses from a previous session
         AppDefaultsStore.ShareExtension.transferStatuses = nil
-        
+
+        if shouldAutoShare {
+            // Minimal placeholder view; we dismiss as soon as the handoff is complete.
+            self.view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+            self.preferredContentSize = NSSize(width: 1, height: 1)
+            return
+        }
+
         let rootView = ShareSheetView(viewModel: viewModel, deviceEntries: validDeviceEntries, onDeviceSelected: { [weak self] index in
             self?.shareToDevice(at: index)
         }, onDismiss: { [weak self] in
@@ -56,21 +67,26 @@ class ShareExtensionController: NSViewController {
                 self.cancel(nil)
             }
         })
-        
+
         let height = sheetHeight
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 410, height: height))
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.frame = container.bounds
         hostingView.autoresizingMask = [.width, .height]
         container.addSubview(hostingView)
-        
+
         self.view = container
         self.preferredContentSize = NSSize(width: 410, height: height)
     }
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+
+        if shouldAutoShare {
+            performAutoShare()
+            return
+        }
+
         guard let item = self.extensionContext?.inputItems.first as? NSExtensionItem else { return }
         if let attachments = item.attachments {
 #if DEBUG
@@ -139,6 +155,13 @@ class ShareExtensionController: NSViewController {
         }
     }
     
+    private func performAutoShare() {
+        viewModel.deviceStatuses[0] = .transferring
+        collectAttachmentsThenHandOff(deviceIndex: 0) { [weak self] in
+            self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+        }
+    }
+
     @objc func cancel(_ sender: AnyObject?) {
         let cancelError = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError, userInfo: nil)
         self.extensionContext!.cancelRequest(withError: cancelError)
@@ -146,7 +169,7 @@ class ShareExtensionController: NSViewController {
     
     // MARK: - Attachment Collection
     
-    private func collectAttachmentsThenHandOff(deviceIndex: Int) {
+    private func collectAttachmentsThenHandOff(deviceIndex: Int, completion: (() -> Void)? = nil) {
         guard let content = extensionContext?.inputItems.first as? NSExtensionItem else { return }
         
         viewModel.isCollectingAttachments = true
@@ -216,9 +239,10 @@ class ShareExtensionController: NSViewController {
             self.viewModel.isCollectingAttachments = false
             
             self.handOffToMainApp(deviceIndex: deviceIndex)
+            completion?()
         }
     }
-    
+
     // MARK: - Handoff to Main App
     
     private func handOffToMainApp(deviceIndex: Int) {
