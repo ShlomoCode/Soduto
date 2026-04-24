@@ -262,6 +262,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, DeviceManagerDelegate {
 
     /// Handles `soduto://share?device=<id>&file=<abs-path>&text=<urlencoded>` (file/text params repeatable).
     private func handleShareURL(_ url: URL) {
+        Logger.general.info("share URL received: \(url, privacy: .public)")
         guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else {
             Logger.general.error("share URL has no query items: \(url, privacy: .public)")
             return
@@ -293,15 +294,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, DeviceManagerDelegate {
             return
         }
         guard let device = self.deviceManager.device(withId: deviceId) else {
-            Logger.general.error("share URL targets unknown/unreachable device: \(deviceId, privacy: .public)")
+            Logger.general.error("share URL targets unknown device: \(deviceId, privacy: .public)")
             return
         }
 
+        Logger.general.info("share URL resolved device id=\(deviceId, privacy: .public) name=\(device.name, privacy: .public) reachable=\(device.isReachable) paired=\(String(describing: device.pairingStatus), privacy: .public) files=\(fileURLs.count) texts=\(texts.count)")
+
         for fileURL in fileURLs {
-            _ = shareService.shareFromExtension(url: fileURL, to: device)
+            let result = shareService.shareFromExtension(url: fileURL, to: device)
+            Logger.general.info("share URL file \(fileURL.path, privacy: .public) -> \(String(describing: result), privacy: .public)")
         }
         for text in texts {
             shareService.shareFromExtension(text: text, to: device)
+            Logger.general.info("share URL text(len=\(text.count)) dispatched")
         }
     }
 }
