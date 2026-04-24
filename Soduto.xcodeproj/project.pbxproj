@@ -188,7 +188,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				31F3A15C293B5EA300550088 /* Soduto Share.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -844,7 +843,6 @@
 			);
 			dependencies = (
 				84D0716A1EB91FAE004D383A /* PBXTargetDependency */,
-				31F3A15B293B5EA300550088 /* PBXTargetDependency */,
 			);
 			name = Soduto;
 			productName = Soduto;

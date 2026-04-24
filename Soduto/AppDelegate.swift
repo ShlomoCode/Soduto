@@ -245,4 +245,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, DeviceManagerDelegate {
         AppDefaultsStore.ShareExtension.sharedTexts = nil
         AppDefaultsStore.ShareExtension.selectedDevice = nil
     }
+
+    // MARK: URL Scheme Handling
+
+    /// Entry point for `soduto://` URLs (registered via CFBundleURLTypes).
+    /// Lets external callers (CLI tools, scripts, Shortcuts) trigger shares without going through the Share Extension.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "soduto" {
+            switch url.host {
+            case "share": handleShareURL(url)
+            default:
+                Logger.general.error("Unknown soduto URL host: \(url.host ?? "nil", privacy: .public)")
+            }
+        }
+    }
+
+    /// Handles `soduto://share?device=<id>&file=<abs-path>&text=<urlencoded>` (file/text params repeatable).
+    private func handleShareURL(_ url: URL) {
+        Logger.general.info("share URL received: \(url, privacy: .public)")
+        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else {
+            Logger.general.error("share URL has no query items: \(url, privacy: .public)")
+            return
+        }
+
+        var deviceId: String?
+        var fileURLs: [URL] = []
+        var texts: [String] = []
+        for item in queryItems {
+            guard let value = item.value, !value.isEmpty else { continue }
+            switch item.name {
+            case "device": deviceId = value
+            case "file":   fileURLs.append(URL(fileURLWithPath: value))
+            case "text":   texts.append(value)
+            default: break
+            }
+        }
+
+        guard let deviceId, !deviceId.isEmpty else {
+            Logger.general.error("share URL missing device param")
+            return
+        }
+        guard !fileURLs.isEmpty || !texts.isEmpty else {
+            Logger.general.error("share URL has no file/text payload")
+            return
+        }
+        guard let shareService = self.serviceManager.service(ofType: ShareService.self) else {
+            Logger.general.error("ShareService unavailable")
+            return
+        }
+        guard let device = self.deviceManager.device(withId: deviceId) else {
+            Logger.general.error("share URL targets unknown device: \(deviceId, privacy: .public)")
+            return
+        }
+
+        Logger.general.info("share URL resolved device id=\(deviceId, privacy: .public) name=\(device.name, privacy: .public) reachable=\(device.isReachable) paired=\(String(describing: device.pairingStatus), privacy: .public) files=\(fileURLs.count) texts=\(texts.count)")
+
+        for fileURL in fileURLs {
+            let result = shareService.shareFromExtension(url: fileURL, to: device)
+            Logger.general.info("share URL file \(fileURL.path, privacy: .public) -> \(String(describing: result), privacy: .public)")
+        }
+        for text in texts {
+            shareService.shareFromExtension(text: text, to: device)
+            Logger.general.info("share URL text(len=\(text.count)) dispatched")
+        }
+    }
 }
